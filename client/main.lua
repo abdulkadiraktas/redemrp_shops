@@ -9,18 +9,12 @@ Citizen.CreateThread(function()
     TriggerServerEvent("redemrp_shops:RequestItems")
     OpenShop()
 end)
-
-
 MenuData = {}
 TriggerEvent("redemrp_menu_base:getData",function(call)
     MenuData = call
 end)
-
-
 local PromptShop
 local OpenShopGroup = GetRandomIntInRange(0, 0xffffff)
-print('OpenShopGroup: ' .. OpenShopGroup)
-
 function OpenShop()
     Citizen.CreateThread(function()
         local str = "Open Shop"
@@ -36,8 +30,6 @@ function OpenShop()
 
     end)
 end
-
-
 Citizen.CreateThread(function()
     while true do
         Wait(0)
@@ -70,7 +62,6 @@ Citizen.CreateThread(function()
 
     end
 end)
-
 Citizen.CreateThread(function()
     for k,v in pairs(Config.Zones) do
         for i = 1, #v.Pos, 1 do
@@ -83,16 +74,18 @@ Citizen.CreateThread(function()
         end
     end
 end)
-
-
-
-
 function OpenShopMenu(zone)
     items_list = {}
     local _zone = zone
     for i=1, #Config.Zones[_zone].Items, 1 do
         local item = Config.Zones[_zone].Items[i]
-        table.insert(items_list, {label = item.label, value = i , desc = "Item Price: "..item.price , obj =  item.object , name = item.item , zone = _zone })
+        if item.variations then
+            for k,v in pairs(item.variations) do
+                table.insert(items_list, {label = v.name, value = i , desc = "Item Price: "..v.price , obj =  v.object , name = item.item , zone = _zone, rot = v.rot or {0.0,0.0,0.0} })
+            end
+        else
+            table.insert(items_list, {label = item.label, value = i , desc = "Item Price: "..item.price , obj =  item.object , name = item.item , zone = _zone })
+        end
     end
     StartCam()
 
@@ -114,7 +107,12 @@ function OpenShopMenu(zone)
         },
 
         function(data, menu)
-            TriggerServerEvent('redemrp_shops:BuyItem', data.current.name, 1 , data.current.zone)
+            local serverData = {
+                item = data.current.name,
+                zone = data.current.zone,
+                type = data.current.obj
+            }
+            TriggerServerEvent('redemrp_shops:BuyItem', serverData, 1)
         end,
 
         function(data, menu)
@@ -133,20 +131,19 @@ function OpenShopMenu(zone)
 
             if canChange == true then
                 canChange = false
-                PreView (data.current.obj)
+                PreView (data.current)
                 canChange = true
             end
         end
     )
 end
-
 function modelrequest( model )
     Citizen.CreateThread(function()
         RequestModel( model )
     end)
 end
-
-function PreView (model)
+function PreView (data)
+    model = data.obj
     if model == "empty" then return end
     if lastPreView ~= nil then
         DeleteEntity(lastPreView)
@@ -166,8 +163,10 @@ function PreView (model)
     SetEntityAsMissionEntity(lastPreView, true, true)
     FreezeEntityPosition(lastPreView , true)
     PointCamAtEntity(camera, lastPreView)
+    if data.rot and data.rot.x then 
+        SetEntityRotation(lastPreView, vector3(data.rot.x,data.rot.y,data.rot.z), 1, true)
+    end
 end
-
 function StartCam()
     DestroyAllCams(true)
     DoScreenFadeOut(800)
@@ -178,7 +177,7 @@ function StartCam()
     RenderScriptCams(true, true, 1000, true, true)
     if canChange == true then
         canChange = false
-        PreView (items_list[1].obj)
+        PreView(items_list[1])
         canChange = true
     end
     DisplayHud(false)
@@ -186,7 +185,6 @@ function StartCam()
     DoScreenFadeIn(1500)
     Wait(1500)
 end
-
 function EndCam()
 	DoScreenFadeOut(800)
     Wait(800)
@@ -198,8 +196,6 @@ function EndCam()
     DestroyAllCams(true)
     DoScreenFadeIn(1500)
 end
-
-
 RegisterNetEvent('redemrp_shops:GetItems')
 AddEventHandler('redemrp_shops:GetItems', function(ShopItems)
     for k,v in pairs(ShopItems) do
@@ -207,4 +203,24 @@ AddEventHandler('redemrp_shops:GetItems', function(ShopItems)
             Config.Zones[k].Items = v
         end
     end
+end)
+
+-- resource stop handler
+AddEventHandler('onResourceStop', function(resourceName)
+    if (GetCurrentResourceName() ~= resourceName) then
+      return
+    end
+    if lastPreView ~= nil then
+        DeleteEntity(lastPreView)
+    end
+    if camera ~= nil then
+        RenderScriptCams(false, true, 1000, true, false)
+        DestroyCam(camera, false)
+        camera = nil
+        DisplayHud(true)
+        DisplayRadar(true)
+        DestroyAllCams(true)
+    end
+    DoScreenFadeIn(1500)
+    MenuData.CloseAll()
 end)
