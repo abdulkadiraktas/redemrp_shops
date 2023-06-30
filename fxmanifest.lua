@@ -13,4 +13,3 @@ server_scripts {
 	'items.lua',
 	'server/main.lua',
 }
-
