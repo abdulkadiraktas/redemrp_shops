@@ -1,14 +1,11 @@
 local ShopItems = {}
-
 data = {}
 TriggerEvent("redemrp_inventory:getData",function(call)
     data = call
 end)
-
 Citizen.CreateThread(function()
     LoadShop()
 end)
-
 function LoadShop()
     ShopItems = {}
    for k,v in pairs(ShopItemsData) do
@@ -25,12 +22,19 @@ function LoadShop()
             price = v.price,
             object = v.object,
             limit = 32,
+            variations = v.variations or nil
         })
     end
 end
-
 function GetPrice(ItemName , Zone)
 	for k,v in pairs(ShopItems[Zone]) do
+        if v.variations then 
+            for i,j in pairs(v.variations) do
+                if j.object == ItemName then
+                    return j.price
+                end
+            end
+        end
         if v.item == ItemName then
            return v.price
         end
@@ -42,24 +46,26 @@ AddEventHandler('redemrp_shops:RequestItems', function()
     local _source = source
     TriggerClientEvent('redemrp_shops:GetItems', _source, ShopItems)
 end)
-
-RegisterServerEvent('redemrp_shops:BuyItem')
-AddEventHandler('redemrp_shops:BuyItem', function(itemName, amount , zone)
+RegisterServerEvent('redemrp_shops:BuyItem')    
+AddEventHandler('redemrp_shops:BuyItem', function(buyData, amount)    
+    itemName = buyData.item
+    zone = buyData.zone
+    local meta = {
+        model = buyData.type or nil
+    }
     local _source = source
     local amount_ = math.floor(amount)
 	if amount_ < 0 then return end
+    if buyData.type then itemName = buyData.type end
 	local ItemPrice = GetPrice(itemName , zone)
 	local TotalPrice = ItemPrice * amount_
     TriggerEvent('redemrp:getPlayerFromId', _source, function(user)
-
             if user.getMoney() >= TotalPrice then
-
-                local ItemData = data.getItem(_source, itemName)
+                local ItemData = data.getItem(_source, buyData.item, meta)
                 if not ItemData.AddItem(amount_) then
                     TriggerClientEvent("redemrp_notification:start", _source, "You don't have enough space!", 3, "error")
                 else
                     user.removeMoney(TotalPrice)
-
                     local name = itemName
                     if ItemData.ItemInfo.label ~= nil then
                         name = ItemData.ItemInfo.label
